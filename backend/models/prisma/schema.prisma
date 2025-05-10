@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CheckType {
+  KYC
+  AML
+  SANCTION
+}
+
+enum CheckResult {
+  CLEAR
+  FLAG
+  BLOCK
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+model User {
+  id           String      @id @default(uuid())
+  firstName    String
+  lastName     String
+  email        String      @unique
+  passwordHash String
+  phone        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  lastLogin    DateTime?
+  isActive     Boolean     @default(true)
+  kyc          UserKYC?
+  wallets      Wallet[]
+  transactions Transaction[] @relation("UserTransactions")
+  audits       AuditLog[]
+  checks       ComplianceCheck[]
+
+  @@index([email])
+}
+
+model UserKYC {
+  id                 String            @id @default(uuid())
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             String            @unique
+  documentType       String
+  documentNumber     String
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  countryCode        String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+model Currency {
+  code              String         @id
+  name              String
+  isCrypto          Boolean        @default(false)
+  stellarAsset      String?
+  minBalance        Float          @default(0)
+  wallets           Wallet[]
+  sourceRates       ExchangeRate[] @relation("SourceCurrency")
+  destinationRates  ExchangeRate[] @relation("TargetCurrency")
+
+  @@index([isCrypto])
+}
+
+model Wallet {
+  id                    String           @id @default(uuid())
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String
+  currency              Currency         @relation(fields: [currencyCode], references: [code])
+  currencyCode          String
+  publicKey             String           @unique
+  balance               Decimal          @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  outgoingTransactions  Transaction[]    @relation("SourceWallet")
+  incomingTransactions  Transaction[]    @relation("DestinationWallet")
+  secrets               SecureStorage[]
+
+  @@index([userId])
+  @@index([currencyCode])
+}
+
+model ExchangeRate {
+  id             String        @id @default(uuid())
+  source         Currency      @relation("SourceCurrency", fields: [sourceCode], references: [code])
+  sourceCode     String
+  target         Currency      @relation("TargetCurrency", fields: [targetCode], references: [code])
+  targetCode     String
+  rate           Decimal
+  validFrom      DateTime
+  validTo        DateTime?
+  provider       String
+  transactions   Transaction[]
+
+  @@index([sourceCode, targetCode])
+  @@index([validFrom, validTo])
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  user            User              @relation("UserTransactions", fields: [userId], references: [id])
+  userId          String
+  source          Wallet            @relation("SourceWallet", fields: [sourceId], references: [id])
+  sourceId        String
+  destination     Wallet            @relation("DestinationWallet", fields: [destId], references: [id])
+  destId          String
+  amountSource    Decimal
+  amountDest      Decimal
+  rate            ExchangeRate?     @relation(fields: [rateId], references: [id])
+  rateId          String?
+  fee             Decimal           @default(0)
+  status          TransactionStatus @default(PENDING)
+  stellarTxHash   String?           @unique
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  completedAt     DateTime?
+  memo            String?
+  checks          ComplianceCheck[]
+
+  @@index([userId])
+  @@index([sourceId])
+  @@index([destId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ComplianceCheck {
+  id            String       @id @default(uuid())
+  user          User         @relation(fields: [userId], references: [id])
+  userId        String
+  transaction   Transaction? @relation(fields: [txId], references: [id])
+  txId          String?
+  checkType     CheckType
+  checkResult   CheckResult
+  checkedAt     DateTime     @default(now())
+  details       Json?
+  
+  @@index([userId])
+  @@index([txId])
+  @@index([checkType, checkResult])
+}
+
+model AuditLog {
+  id            String     @id @default(uuid())
+  user          User       @relation(fields: [userId], references: [id])
+  userId        String
+  actionType    String
+  actionDetails String
+  ipAddress     String?
+  deviceInfo    Json?
+  createdAt     DateTime   @default(now())
+
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+}
+
+model SecureStorage {
+  id              String     @id @default(uuid())
+  wallet          Wallet     @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  walletId        String
+  encryptedSecret String
+  keyVersion      Int
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([walletId])
+}

@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "@stellar/stellar-sdk": "^13.3.0",
+    "axios": "^1.9.0",
+    "bcrypt": "^5.1.1",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemailer": "^7.0.2",
+    "nodemon": "^3.1.10",
+    "prisma": "^6.7.0"
+  },
+  "type": "module"
+}
